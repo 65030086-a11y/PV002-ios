@@ -1,0 +1,52 @@
+name: Build Unsigned iOS IPA
+
+on:
+  push:
+    branches: [ "master" ] # สั่งให้ทำงานเมื่อคุณดันโค้ดขึ้น branch main
+  workflow_dispatch: # เปิดให้กดสั่ง Build เองมือได้จากหน้าเว็บ GitHub
+
+jobs:
+  build:
+    runs-on: macos-latest # สั่งให้รันบนเครื่อง Mac ของ GitHub
+
+    steps:
+      # 1. ดึงโค้ดจากโปรเจกต์ของคุณมาใช้งาน
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. ติดตั้ง Java (จำเป็นสำหรับระบบบางตัวของ Flutter)
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 3. ติดตั้ง Flutter SDK
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          # ระบบจะเลือกเวอร์ชันล่าสุดให้ หรือจะระบุเวอร์ชันที่คุณใช้ก็ได้ เช่น flutter-version: '3.19.0'
+
+      # 4. ดึง Dependencies (เหมือนการรัน flutter pub get)
+      - name: Install dependencies
+        run: flutter pub get
+
+      # 5. สั่ง Build iOS แบบไม่ใช้ Certificate (ได้โฟลเดอร์ .app)
+      - name: Build iOS App (Unsigned)
+        run: flutter build ios --no-codesign
+
+      # 6. แปลงโฟลเดอร์ .app ให้กลายเป็นไฟล์ .ipa เพื่อเอาไปใช้กับ 3uTools
+      - name: Pack into IPA
+        run: |
+          mkdir -p build/ios/iphoneos/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
+          cd build/ios/iphoneos
+          zip -r Runner.ipa Payload
+
+      # 7. อัปโหลดไฟล์ขึ้น GitHub เพื่อให้คุณดาวน์โหลดได้
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-app-unsigned-ipa
+          path: build/ios/iphoneos/Runner.ipa
